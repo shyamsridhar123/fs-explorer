@@ -17,10 +17,12 @@ Install locally:
 uv pip install .
 ```
 
-Export a Google API key (must have access to EAP models):
+Export Azure OpenAI credentials:
 
 ```bash
-export GOOGLE_API_KEY="..."
+export AZURE_OPENAI_API_KEY="..."
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_DEPLOYMENT="gpt-4o"  # Optional, defaults to gpt-4o
 ```
 
 Run:

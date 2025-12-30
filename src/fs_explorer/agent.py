@@ -1,7 +1,6 @@
 import os
 from typing import Callable, Any, cast
-from google.genai.types import Content, HttpOptions, Part
-from google.genai import Client as GenAIClient
+from openai import AsyncAzureOpenAI
 from .models import Action, ActionType, ToolCallAction, Tools
 from .fs import read_file, grep_file_content, glob_paths, parse_file, check_api_key
 
@@ -33,39 +32,62 @@ Choose the action based on the current situation, inferred from the previous cha
 
 
 class FsExplorerAgent:
-    def __init__(self, api_key: str | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        endpoint: str | None = None,
+        deployment: str | None = None,
+        api_version: str = "2024-08-01-preview",
+    ):
         if api_key is None:
-            api_key = os.getenv("GOOGLE_API_KEY")
+            api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        if endpoint is None:
+            endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        if deployment is None:
+            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+
         if api_key is None:
             raise ValueError(
-                "GOOGLE_API_KEY not found within the current environment: please export it or provide it to the class constructor."
+                "AZURE_OPENAI_API_KEY not found within the current environment: please export it or provide it to the class constructor."
             )
-        self._client = GenAIClient(
-            api_key=api_key, http_options=HttpOptions(api_version="v1")
+        if endpoint is None:
+            raise ValueError(
+                "AZURE_OPENAI_ENDPOINT not found within the current environment: please export it or provide it to the class constructor."
+            )
+
+        self._client = AsyncAzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=endpoint,
+            api_version=api_version,
         )
-        self._chat_history: list[Content] = [
-            Content(role="system", parts=[Part.from_text(text=SYSTEM_PROMPT)])
+        self._deployment = deployment
+        self._chat_history: list[dict[str, Any]] = [
+            {"role": "system", "content": SYSTEM_PROMPT}
         ]
 
     def configure_task(self, task: str) -> None:
-        self._chat_history.append(
-            Content(role="user", parts=[Part.from_text(text=task)])
-        )
+        self._chat_history.append({"role": "user", "content": task})
 
     async def take_action(self) -> tuple[Action, ActionType] | None:
-        response = await self._client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=self._chat_history,  # type: ignore
-            config={
-                "response_mime_type": "application/json",
-                "response_json_schema": Action.model_json_schema(),
+        response = await self._client.chat.completions.create(
+            model=self._deployment,
+            messages=self._chat_history,  # type: ignore
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "action_response",
+                    "schema": Action.model_json_schema(),
+                    "strict": True,
+                },
             },
         )
-        if response.candidates is not None:
-            if response.candidates[0].content is not None:
-                self._chat_history.append(response.candidates[0].content)
-            if response.text is not None:
-                action = Action.model_validate_json(response.text)
+        if response.choices and len(response.choices) > 0:
+            choice = response.choices[0]
+            if choice.message.content:
+                self._chat_history.append(
+                    {"role": "assistant", "content": choice.message.content}
+                )
+                action = Action.model_validate_json(choice.message.content)
                 if action.to_action_type() == "toolcall":
                     toolcall = cast(ToolCallAction, action.action)
                     await self.call_tool(
@@ -83,11 +105,6 @@ class FsExplorerAgent:
         except Exception as e:
             result = f"An error occurred while calling tool {tool_name} with {tool_input}: {e}"
         self._chat_history.append(
-            Content(
-                role="user",
-                parts=[
-                    Part.from_text(text=f"Tool result for {tool_name}:\n\n{result}")
-                ],
-            )
+            {"role": "user", "content": f"Tool result for {tool_name}:\n\n{result}"}
         )
         return None

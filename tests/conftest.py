@@ -1,46 +1,39 @@
-from google.genai.types import (
-    HttpOptions,
-    Content,
-    GenerateContentResponse,
-    Candidate,
-    Part,
-)
 from fs_explorer.models import StopAction, Action
 
 
-class MockModels:
-    async def generate_content(self, *args, **kwargs) -> GenerateContentResponse:
-        return GenerateContentResponse(
-            candidates=[
-                Candidate(
-                    content=Content(
-                        role="assistant",
-                        parts=[
-                            Part.from_text(
-                                text=Action(
-                                    action=StopAction(
-                                        final_result="this is a final result"
-                                    ),
-                                    reason="I am done",
-                                ).model_dump_json()
-                            )
-                        ],
-                    )
-                )
-            ]
-        )
+class MockChoice:
+    def __init__(self):
+        self.message = MockMessage()
 
 
-class MockAio:
+class MockMessage:
+    def __init__(self):
+        self.content = Action(
+            action=StopAction(final_result="this is a final result"),
+            reason="I am done",
+        ).model_dump_json()
+
+
+class MockChatCompletion:
+    def __init__(self):
+        self.choices = [MockChoice()]
+
+
+class MockCompletions:
+    async def create(self, *args, **kwargs) -> MockChatCompletion:
+        return MockChatCompletion()
+
+
+class MockChat:
     @property
-    def models(self):
-        return MockModels()
+    def completions(self):
+        return MockCompletions()
 
 
-class MockGenAIClient:
-    def __init__(self, api_key: str, http_options: HttpOptions) -> None:
+class MockAsyncAzureOpenAI:
+    def __init__(self, api_key: str, azure_endpoint: str, api_version: str) -> None:
         return None
 
     @property
-    def aio(self) -> MockAio:
-        return MockAio()
+    def chat(self) -> MockChat:
+        return MockChat()

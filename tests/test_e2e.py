@@ -4,8 +4,9 @@ import os
 from workflows.testing import WorkflowTestRunner
 
 SKIP_IF, SKIP_REASON = (
-    os.getenv("GOOGLE_API_KEY") is None,
-    "GOOGLE_API_KEY not available",
+    os.getenv("AZURE_OPENAI_API_KEY") is None
+    or os.getenv("AZURE_OPENAI_ENDPOINT") is None,
+    "AZURE_OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT not available",
 )
 
 

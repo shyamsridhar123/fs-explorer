@@ -9,7 +9,7 @@ description = "Explore and understand your filesystem better with AI."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "google-genai>=1.55.0",
+    "openai>=1.0.0",
     "llama-cloud-services>=0.6.88",
     "llama-index-workflows>=2.11.5",
     "typer>=0.20.0",
